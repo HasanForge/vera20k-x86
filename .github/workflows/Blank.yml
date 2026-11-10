@@ -1,64 +1,73 @@
-name: Windows x86 Build
+
+name: Windows x86 (32-bit) build
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
-  actions: write
+
+# Static CRT and rust-lld for the x86 MSVC build.
+env:
+  CARGO_TARGET_I686_PC_WINDOWS_MSVC_LINKER: rust-lld
+  CARGO_TARGET_I686_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
+  RUST_BACKTRACE: "1"
 
 jobs:
-  build-x86:
-    name: Build VERA20K (Windows 32-bit)
+  build:
+    name: Build VERA20K for Windows x86
     runs-on: windows-latest
+    timeout-minutes: 60
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Preserve LF line endings
+        shell: pwsh
+        run: git config --global core.autocrlf false
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Install Rust and x86 target
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
         with:
+          toolchain: stable
           targets: i686-pc-windows-msvc
 
-      - name: Show Rust version
+      - name: Restore Cargo cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+
+      - name: Build VERA20K x86
+        shell: pwsh
+        env:
+          VERA20K_LANGUAGE_FOLDER: "1"
         run: |
-          rustc --version
-          cargo --version
+          $ErrorActionPreference = 'Stop'
+          cargo build --profile shipping --locked -p vera20k --no-default-features --bin vera20k --target i686-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { throw "Build failed: $LASTEXITCODE" }
 
-      - name: Build VERA20K
-        run: cargo build --release --target i686-pc-windows-msvc -p vera20k
-
-      - name: Verify build outputs
+      - name: Verify 32-bit executable
         shell: pwsh
         run: |
-          $dir = "target/i686-pc-windows-msvc/release"
-
-          $required = @(
-            "vera20k.exe",
-            "asset.exe",
-            "extract-ini.exe"
-          )
-
-          foreach ($file in $required) {
-            $path = Join-Path $dir $file
-
-            if (!(Test-Path $path)) {
-              Write-Error "Missing build output: $file"
-              exit 1
-            }
-
-            Write-Host "Found: $path"
+          $exe = 'target/i686-pc-windows-msvc/shipping/vera20k.exe'
+          if (!(Test-Path $exe)) { throw "Executable not found: $exe" }
+          $bytes = [IO.File]::ReadAllBytes($exe)
+          if ($bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) {
+            throw 'Invalid PE executable'
           }
+          $offset = [BitConverter]::ToInt32($bytes, 0x3C)
+          if ([BitConverter]::ToUInt16($bytes, $offset + 4) -ne 0x014C) {
+            throw 'Executable is not x86'
+          }
+          Write-Host 'Verified x86 executable.'
 
-      - name: Upload Windows x86 executables
-        uses: actions/upload-artifact@v4
+      - name: Upload executable
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: vera20k-windows-x86
+          name: VERA20K-Windows-x86
           path: |
-            target/i686-pc-windows-msvc/release/vera20k.exe
-            target/i686-pc-windows-msvc/release/asset.exe
-            target/i686-pc-windows-msvc/release/extract-ini.exe
+            target/i686-pc-windows-msvc/shipping/vera20k.exe
+            config.toml.example
+            LICENSE-GPL
           if-no-files-found: error
           retention-days: 30
           
