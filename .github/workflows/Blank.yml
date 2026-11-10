@@ -1,0 +1,64 @@
+name: Windows x86 Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build-x86:
+    name: Build VERA20K (Windows 32-bit)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: i686-pc-windows-msvc
+
+      - name: Show Rust version
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Build VERA20K
+        run: cargo build --release --target i686-pc-windows-msvc -p vera20k
+
+      - name: Verify build outputs
+        shell: pwsh
+        run: |
+          $dir = "target/i686-pc-windows-msvc/release"
+
+          $required = @(
+            "vera20k.exe",
+            "asset.exe",
+            "extract-ini.exe"
+          )
+
+          foreach ($file in $required) {
+            $path = Join-Path $dir $file
+
+            if (!(Test-Path $path)) {
+              Write-Error "Missing build output: $file"
+              exit 1
+            }
+
+            Write-Host "Found: $path"
+          }
+
+      - name: Upload Windows x86 executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: vera20k-windows-x86
+          path: |
+            target/i686-pc-windows-msvc/release/vera20k.exe
+            target/i686-pc-windows-msvc/release/asset.exe
+            target/i686-pc-windows-msvc/release/extract-ini.exe
+          if-no-files-found: error
+          retention-days: 30
+          
