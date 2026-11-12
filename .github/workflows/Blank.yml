@@ -46,7 +46,7 @@ jobs:
           VERA20K_LANGUAGE_FOLDER: "1"
         run: |
           $ErrorActionPreference = 'Stop'
-          cargo build --profile shipping --locked -p vera20k --no-default-features --bin vera20k --target i686-win7-windows-msvc -Z build-std
+          cargo +nightly build --profile shipping --locked -p vera20k --no-default-features --bin vera20k --target i686-win7-windows-msvc -Z build-std
           if ($LASTEXITCODE -ne 0) { throw "Build failed: $LASTEXITCODE" }
 
       - name: Verify 32-bit executable
