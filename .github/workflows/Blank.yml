@@ -35,7 +35,6 @@ jobs:
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
         with:
           toolchain: nightly
-          targets: i686-win7-windows-msvc
           components: rust-src
 
       - name: Restore Cargo cache
@@ -75,4 +74,3 @@ jobs:
             LICENSE-GPL
           if-no-files-found: error
           retention-days: 30
-          
